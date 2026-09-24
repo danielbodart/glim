@@ -1,0 +1,42 @@
+name: CI
+on:
+  push:
+    branches: [trunk]
+permissions:
+  contents: write
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # run.ts versions the release by commit count.
+          fetch-depth: 0
+      # zig, bun and shellcheck, at the versions .mise.toml pins.
+      - uses: jdx/mise-action@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/zig
+          key: zig-${{ hashFiles('build.zig.zon', '.mise.toml') }}
+          restore-keys: zig-
+      - name: CI
+        run: ./run ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glim-linux-x86_64
+          path: glim-linux-x86_64.tar.gz
+
+  # The package builds anywhere Nix does; the NixOS module needs a NixOS
+  # system, which the flake's check boots in a VM (KVM is on Linux runners).
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with:
+          determinate: false
+      - name: Nix
+        run: ./run nix

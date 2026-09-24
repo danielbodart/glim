@@ -1,0 +1,45 @@
+# glim: a Razer Blade's keyboard backlight as an LED UPower can drive.
+#
+# Started by udev when a Blade appears -- see `glim udev-rules` -- so it has no
+# [Install] section and is never enabled. Before upower.service because older
+# UPower looks for keyboard backlights only once, when it starts (1.91 notices
+# one appearing later), and Type=notify because the LED is only worth finding
+# once glim has set it to the keyboard's real level: READY=1 comes after that.
+
+[Unit]
+Description=Razer Blade keyboard backlight as an LED
+Documentation=https://github.com/danielbodart/glim
+Before=upower.service
+After=systemd-modules-load.service
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/glim run
+Restart=on-failure
+RestartSec=5
+
+# Root, for /dev/uleds and the LED's sysfs file, both root-only -- but no
+# capabilities, no network and a read-only view of everything else.
+CapabilityBoundingSet=
+NoNewPrivileges=yes
+DevicePolicy=closed
+DeviceAllow=/dev/uleds rw
+DeviceAllow=char-hidraw rw
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources

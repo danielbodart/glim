@@ -1,0 +1,7 @@
+zig-out/
+.zig-cache/
+dist/staging/
+glim-linux-x86_64.tar.gz*
+result
+.claude/worktrees/
+CLAUDE.local.md
