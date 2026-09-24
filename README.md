@@ -9,8 +9,9 @@ desktop can drive it like any other laptop's:
 - the **Keyboard Brightness** slider in GNOME's quick settings, and KDE's
 - the backlight **off when the screen blanks or locks**, and back when it wakes
 - **dimmed when idle**, with the display
+- the **Fn brightness keys** and the slider kept in step, on GNOME
 
-It is one static binary, about 60 KB, with no dependencies: no libc, no
+It is one static binary, about 100 KB, with no dependencies: no libc, no
 Python, no DKMS, and no out-of-tree kernel module, so it keeps working under
 Secure Boot and across kernel upgrades.
 
@@ -39,6 +40,26 @@ are left as they are.
 glim is started by udev when a supported Blade appears, and never runs on any
 other machine.
 
+### The Fn keys
+
+The Fn brightness keys never reach Linux as keys: the EC acts on them itself
+and reports the new level on another of the Blade's HID interfaces -- every
+level but 0, which it goes to without a word. glim listens there, and while Fn
+is held asks the EC for its level every 100 ms, to catch that one.
+
+Telling the desktop takes a second piece. GNOME ignores a brightness change it
+hears of from UPower unless the kernel reported it, which an LED made through
+uleds cannot. So `glim follow` runs in each desktop session, hears each Fn
+change from glim over `/run/glim/fn.sock`, and sets it on GNOME's own
+keyboard brightness. GNOME passes it back down through UPower, and glim
+ignores that echo for 250 ms (`glim run --fn-hold-ms`) so it cannot undo a
+press made since.
+
+That interface is also a keyboard: every key press comes through it. hidraw
+cannot hand over some reports and not others, so glim -- the root service,
+and the only reader -- receives a copy of each, and drops it unread. `glim
+follow` never opens the device.
+
 ## Install
 
 ### Any distribution with systemd
@@ -50,8 +71,10 @@ sudo ./install.sh
 ```
 
 That puts `glim` in `/usr/local/bin`, its unit in `/etc/systemd/system`, its
-udev rules in `/etc/udev/rules.d`, and `uleds` in `/etc/modules-load.d`, then
-starts it. `sudo ./install.sh --uninstall` takes all four out again.
+udev rules in `/etc/udev/rules.d`, `uleds` in `/etc/modules-load.d`, and the
+`glim-follow` user unit in `/etc/systemd/user`, enabled for every user from
+their next login. Then it starts glim. `sudo ./install.sh --uninstall` takes
+it all out again.
 
 ### NixOS
 
@@ -68,6 +91,8 @@ starts it. `sudo ./install.sh --uninstall` takes all four out again.
 {
   imports = [ inputs.glim.nixosModules.default ];
   services.glim.enable = true;
+  # services.glim.follow = false;  # no glim-follow in desktop sessions
+  # services.glim.fnHoldMs = 250;  # how long to ignore GNOME's echo of a Fn change
 }
 ```
 
@@ -75,13 +100,18 @@ starts it. `sudo ./install.sh --uninstall` takes all four out again.
 
 ```
 glim probe        which Blade was found, and its brightness now
-glim run          serve the LED (what the unit runs)
+glim run          serve the LED (what glim.service runs)
+glim follow       pass Fn changes on to GNOME (what glim-follow.service runs)
 glim udev-rules   the rules that start glim.service on a Blade
 glim version
 ```
 
 `journalctl -u glim` shows what it found when it started, and any trouble
-reaching the EC since.
+reaching the EC since; `journalctl --user -u glim-follow` the same for the
+session side.
+
+GNOME reads the keyboard's range once, when its power daemon starts, so a
+first install needs a log out and in before the slider appears.
 
 ## Supported laptops
 
@@ -96,6 +126,8 @@ word; if yours works, or does not, please open an issue with the output of
 ## Building
 
 Zig and Bun come from [mise](https://mise.jdx.dev), pinned in `.mise.toml`.
+`./run test` runs the D-Bus client's test against a private bus it starts
+with `dbus-run-session`, never the session it is run from.
 
 ```bash
 ./run          # lint, test, build

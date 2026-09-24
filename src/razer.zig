@@ -79,6 +79,33 @@ pub fn payload(response: *const [report_len]u8) []const u8 {
     return response[8..88];
 }
 
+/// The EC's own notifications, as input reports on another of the Blade's
+/// interfaces: [report id, event, value, ...].
+///
+/// The Fn brightness keys never reach the host as keys: the EC acts on them
+/// itself. It reports each new level as [0x05, 0x08, level] -- except 0,
+/// which it reaches from the lowest step (15) without a word. The brightness
+/// key itself is not reported either. The one sign left is the Fn key:
+/// [0x04, 0x0a] once pressed, [0x04, 0x00] once let go. While it is held is
+/// when to keep asking the EC what it did.
+pub const notification_report_id = 0x05;
+const brightness_event = 0x08;
+const special_keys_report_id = 0x04;
+
+/// The level in a brightness notification, or null for any other report.
+pub fn brightnessNotification(report: []const u8) ?u8 {
+    if (report.len < 3) return null;
+    if (report[0] != notification_report_id or report[1] != brightness_event) return null;
+    return report[2];
+}
+
+/// For the special keys' report, whether any of them -- Fn among them -- is
+/// held; null for any other report.
+pub fn specialKeyHeld(report: []const u8) ?bool {
+    if (report.len < 2 or report[0] != special_keys_report_id) return null;
+    return report[1] != 0;
+}
+
 pub const razer_vendor_id = 0x1532;
 
 pub const Model = struct { product_id: u16, name: []const u8 };
@@ -174,6 +201,22 @@ test "only a successful echo of the same command is an answer" {
 
     response[0] = @intFromEnum(Status.busy);
     try std.testing.expect(!answers(&response, get_brightness));
+}
+
+test "a brightness notification carries the EC's new level" {
+    try std.testing.expectEqual(@as(?u8, 0xa5), brightnessNotification(&.{ 0x05, 0x08, 0xa5, 0, 0, 0 }));
+    // Report 0x04 is the Fn key itself, and other events share report 0x05.
+    try std.testing.expectEqual(@as(?u8, null), brightnessNotification(&.{ 0x04, 0x0a, 0x00 }));
+    try std.testing.expectEqual(@as(?u8, null), brightnessNotification(&.{ 0x05, 0x09, 0x10 }));
+    try std.testing.expectEqual(@as(?u8, null), brightnessNotification(&.{ 0x05, 0x08 }));
+}
+
+test "the Fn key's press is told from its release" {
+    try std.testing.expectEqual(@as(?bool, true), specialKeyHeld(&.{ 0x04, 0x0a, 0x00, 0x00 }));
+    try std.testing.expectEqual(@as(?bool, false), specialKeyHeld(&.{ 0x04, 0x00, 0x00, 0x00 }));
+    // An ordinary key report, all keys up, is not the special keys' report.
+    try std.testing.expectEqual(@as(?bool, null), specialKeyHeld(&.{ 0x01, 0x00, 0x00, 0x00 }));
+    try std.testing.expectEqual(@as(?bool, null), specialKeyHeld(&.{0x04}));
 }
 
 test "models are found by product id" {

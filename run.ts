@@ -28,8 +28,16 @@ export async function build() {
     await $`zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-linux -Dcpu=baseline -Dversion=${ver}`;
 }
 
+/** Under a private bus when dbus-run-session is there, for the D-Bus
+ *  client's test: it is handed that bus's address and never sees the session
+ *  this was run from. Without one, that test is skipped. */
 export async function test() {
-    await $`zig build test --summary all`;
+    const { exitCode } = await $`which dbus-run-session`.quiet().nothrow();
+    if (exitCode === 0) {
+        await $`dbus-run-session -- sh -c 'GLIM_TEST_BUS="$DBUS_SESSION_BUS_ADDRESS" exec zig build test --summary all'`;
+    } else {
+        await $`zig build test --summary all`;
+    }
 }
 
 export async function lint() {
@@ -52,7 +60,7 @@ export async function dev() {
 export async function dist() {
     if (!existsSync("zig-out/bin/glim")) await build();
     await $`rm -rf ${STAGING} && mkdir -p ${STAGING}`;
-    await $`cp zig-out/bin/glim dist/install.sh dist/glim.service dist/glim.conf ${STAGING}/`;
+    await $`cp zig-out/bin/glim dist/install.sh dist/glim.service dist/glim-follow.service dist/glim.conf ${STAGING}/`;
     await $`tar -czf ${TARBALL} -C ${STAGING} .`;
     await $`sha256sum ${TARBALL} > ${TARBALL}.sha256`;
     console.log(`Tarball: ${TARBALL} (v${await version()})`);

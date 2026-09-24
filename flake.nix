@@ -46,10 +46,15 @@
             machine.succeed("lsmod | grep -w uleds")
             machine.succeed("test -c /dev/uleds")
             machine.succeed("systemctl cat glim.service | grep -q 'Type=notify'")
+            machine.succeed("systemctl cat glim.service | grep -q 'RuntimeDirectory=glim'")
+            # Enabled for every user's graphical session.
+            machine.succeed("test -e /etc/systemd/user/graphical-session.target.wants/glim-follow.service")
             machine.succeed("grep -q 'ATTRS{idProduct}==\"029f\".*SYSTEMD_WANTS.*glim.service' /etc/udev/rules.d/70-glim.rules")
             machine.fail("glim probe")
             machine.fail("systemctl start glim.service")
             machine.fail("ls /sys/class/leds | grep kbd_backlight")
+            # With no Blade, glim follow has nothing to do and says so, cleanly.
+            machine.succeed("glim follow 2>&1 | grep -q 'nothing to follow'")
           '';
         };
       };

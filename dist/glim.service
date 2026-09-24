@@ -17,6 +17,10 @@ Type=notify
 ExecStart=/usr/local/bin/glim run
 Restart=on-failure
 RestartSec=5
+# /run/glim/fn.sock, where glim announces the levels the Fn keys set, for
+# `glim follow` in each desktop session.
+RuntimeDirectory=glim
+RuntimeDirectoryMode=0755
 
 # Root, for /dev/uleds and the LED's sysfs file, both root-only -- but no
 # capabilities, no network and a read-only view of everything else.

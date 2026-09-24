@@ -6,6 +6,7 @@
   lib,
   stdenv,
   zig_0_15,
+  dbus,
   version,
 }:
 
@@ -20,6 +21,7 @@ stdenv.mkDerivation {
       ../build.zig.zon
       ../src
       ../dist/glim.service
+      ../dist/glim-follow.service
       ../dist/glim.conf
     ];
   };
@@ -39,9 +41,12 @@ stdenv.mkDerivation {
   '';
 
   doCheck = true;
+  # A private bus for the D-Bus client's test, handed over as GLIM_TEST_BUS.
+  nativeCheckInputs = [ dbus ];
   checkPhase = ''
     runHook preCheck
-    zig build test
+    dbus-run-session --config-file=${dbus}/share/dbus-1/session.conf -- \
+      sh -c 'GLIM_TEST_BUS="$DBUS_SESSION_BUS_ADDRESS" exec zig build test --summary all'
     runHook postCheck
   '';
 
@@ -49,6 +54,9 @@ stdenv.mkDerivation {
     runHook preInstall
     mkdir -p $out/lib/systemd/system
     substitute dist/glim.service $out/lib/systemd/system/glim.service \
+      --replace-fail /usr/local/bin/glim $out/bin/glim
+    mkdir -p $out/lib/systemd/user
+    substitute dist/glim-follow.service $out/lib/systemd/user/glim-follow.service \
       --replace-fail /usr/local/bin/glim $out/bin/glim
     install -Dm644 dist/glim.conf $out/lib/modules-load.d/glim.conf
     mkdir -p $out/lib/udev/rules.d

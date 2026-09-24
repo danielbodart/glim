@@ -1,0 +1,22 @@
+# glim follow: tells GNOME about keyboard brightness set with the Fn keys,
+# which the EC acts on without the desktop hearing of it. It hears of them from
+# glim.service over /run/glim/fn.sock. A user unit, in the graphical session,
+# because GNOME's settings daemon lives on the session bus.
+#
+# On a machine with no Blade it finds nothing to follow and exits cleanly, so
+# enabling it for every user everywhere costs one look at /sys per login.
+
+[Unit]
+Description=Tell GNOME about keyboard brightness set with the Fn keys
+Documentation=https://github.com/danielbodart/glim
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/local/bin/glim follow
+Restart=on-failure
+# Long enough that a glim.service restart does not use up the start limit.
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
