@@ -1,5 +1,6 @@
 //! The brightness levels the EC chose itself -- the Fn keys -- as `glim run`
 //! announces them to whoever listens: `glim follow`, in each desktop session.
+//! Each listener is first told the level as it stands when it connects.
 //!
 //! A SOCK_SEQPACKET socket at /run/glim/fn.sock, so each level is one message:
 //! its decimal digits and a newline. Anyone may connect -- all it tells is the
@@ -47,13 +48,16 @@ pub const Server = struct {
         posix.close(self.fd);
     }
 
-    /// Takes a waiting connection. Past `max_clients`, the newcomer is turned
-    /// away: more sessions than that on one laptop is not a real case.
-    pub fn accept(self: *Server) void {
+    /// Takes a waiting connection and tells it `level`, the one it would
+    /// otherwise only learn at the next change. Past `max_clients`, the
+    /// newcomer is turned away: more sessions than that on one laptop is not
+    /// a real case.
+    pub fn accept(self: *Server, level: u8) void {
         const fd = posix.accept(self.fd, null, null, posix.SOCK.CLOEXEC | posix.SOCK.NONBLOCK) catch return;
         for (&self.clients) |*c| {
             if (c.* == -1) {
                 c.* = fd;
+                self.send(c, level);
                 return;
             }
         }
@@ -63,12 +67,15 @@ pub const Server = struct {
 
     /// Sends `level` to every listener, dropping any that has gone.
     pub fn announce(self: *Server, level: u8) void {
+        for (&self.clients) |*c| {
+            if (c.* != -1) self.send(c, level);
+        }
+    }
+
+    fn send(self: *Server, client: *posix.fd_t, level: u8) void {
         var buf: [4]u8 = undefined;
         const msg = std.fmt.bufPrint(&buf, "{d}\n", .{level}) catch unreachable;
-        for (&self.clients) |*c| {
-            if (c.* == -1) continue;
-            _ = posix.send(c.*, msg, posix.MSG.NOSIGNAL) catch self.drop(c);
-        }
+        _ = posix.send(client.*, msg, posix.MSG.NOSIGNAL) catch self.drop(client);
     }
 
     pub fn drop(self: *Server, client: *posix.fd_t) void {
@@ -120,8 +127,11 @@ test "levels go from the server to every listener, one message each" {
     const a = try connect(path);
     defer posix.close(a);
     const b = try connect(path);
-    server.accept();
-    server.accept();
+    server.accept(120);
+    server.accept(120);
+    // Each first hears the level as it was when it came.
+    try std.testing.expectEqual(@as(u8, 120), try receive(a));
+    try std.testing.expectEqual(@as(u8, 120), try receive(b));
 
     server.announce(165);
     server.announce(0);

@@ -181,6 +181,17 @@ const Run = struct {
         self.listeners.announce(level);
     }
 
+    /// A listener has come: one in a new session, or one back after glim
+    /// restarted. It is told the level as it stands, for GNOME to take up.
+    /// A restart is what needs it: the LED goes away with glim, and while it
+    /// is gone UPower tells GNOME the keyboard is at 0, which GNOME keeps
+    /// when the LED comes back at the real level. GNOME's echo comes back as
+    /// a Fn change's does, so the hold starts here too.
+    fn onListener(self: *Run) void {
+        self.hold_until_ms = nowMs() + self.fn_hold_ms;
+        self.listeners.accept(self.current);
+    }
+
     fn onLed(self: *Run, level: u8) void {
         if (nowMs() < self.hold_until_ms) return;
         if (level == self.current) return;
@@ -261,7 +272,7 @@ fn run(options: RunOptions) !void {
         // be the echo of it.
         if (fds[1].revents != 0) state.onNotification();
         if (fds[0].revents & posix.POLL.IN != 0) state.onLed(try led.next());
-        if (fds[2].revents != 0) listeners.accept();
+        if (fds[2].revents != 0) state.onListener();
         for (&listeners.clients, fds[fixed..]) |*c, f| {
             if (f.revents != 0) listeners.drop(c);
         }
@@ -274,8 +285,8 @@ fn run(options: RunOptions) !void {
 /// bus. That is the only way in: GNOME ignores a change it hears of from
 /// UPower unless the kernel reported it, and an LED made through uleds cannot.
 ///
-/// It hears of them from `glim run`, over /run/glim/fn.sock, and never touches
-/// the Blade itself. Exits quietly on a machine with no Blade, and with an
+/// It hears of them from `glim run`, over /run/glim/fn.sock, which first tells
+/// it the level as it stands, and never touches the Blade itself. Exits quietly on a machine with no Blade, and with an
 /// error when glim or the bus goes away, for the user unit to restart it.
 fn follow() !void {
     if (!try hidraw.bladePresent()) {
