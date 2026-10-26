@@ -159,7 +159,7 @@ const Run = struct {
             log.warn("{s}: {s}; could not ask the EC what the Fn keys did", .{ d.name(), @errorName(err) });
             return;
         };
-        if (level != self.current) self.onFnChange(level);
+        self.onFnChange(level);
     }
 
     /// The EC changed the brightness itself. The LED is set to match, so
@@ -168,7 +168,13 @@ const Run = struct {
     /// writes the LED -- in about 15 ms, and slightly off, since GNOME counts
     /// in percent. Sent on, that echo would undo presses made since and nudge
     /// the level.
+    ///
+    /// A level it already has is no change, and GNOME is not told: the EC
+    /// reports one on resume. By then GNOME has turned the backlight off with
+    /// the screen, and is about to put back what it had, without a word to
+    /// its own slider. Told the 0 first, the slider shows off from then on.
     fn onFnChange(self: *Run, level: u8) void {
+        if (level == self.current) return;
         self.current = level;
         self.hold_until_ms = nowMs() + self.fn_hold_ms;
         self.led.set(level) catch |err| log.warn("could not set the LED to {d}: {s}", .{ level, @errorName(err) });
