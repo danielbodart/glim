@@ -8,13 +8,13 @@ jobs:
   linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # run.ts versions the release by commit count.
           fetch-depth: 0
       # zig, bun and shellcheck, at the versions .mise.toml pins.
-      - uses: jdx/mise-action@v4
-      - uses: actions/cache@v4
+      - uses: jdx/mise-action@v5
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/zig
           key: zig-${{ hashFiles('build.zig.zon', '.mise.toml') }}
@@ -23,7 +23,7 @@ jobs:
         run: ./run ci
         env:
           GH_TOKEN: ${{ github.token }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: glim-linux-x86_64
           path: glim-linux-x86_64.tar.gz
@@ -33,8 +33,8 @@ jobs:
   nix:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
       - uses: DeterminateSystems/nix-installer-action@main
         with:
           determinate: false
