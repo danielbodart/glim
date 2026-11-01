@@ -4,8 +4,13 @@ import { existsSync } from "fs";
 
 process.env.FORCE_COLOR = "1";
 
+// dist/ holds only what dist makes, everything a release ships: the
+// tarball, its .sha256 (the name install's curl line has always had beside
+// it), SHA256SUMS, and install.sh, also a release asset of its own. What
+// they are made from is in packaging/.
 const TARBALL = "glim-linux-x86_64.tar.gz";
-const STAGING = "dist/staging";
+const STAGING = "zig-out/staging";
+const PACKAGING = ["install.sh", "glim.service", "glim-follow.service", "glim.conf"];
 
 // ─── Version ────────────────────────────────────────────────────────────────
 
@@ -41,11 +46,11 @@ export async function test() {
 }
 
 export async function lint() {
-    await $`shellcheck dist/install.sh`;
+    await $`shellcheck packaging/install.sh`;
 }
 
 export async function clean() {
-    await $`rm -rf zig-out .zig-cache ${STAGING} ${TARBALL} ${TARBALL}.sha256`;
+    await $`rm -rf zig-out .zig-cache dist`;
     console.log("Cleaned.");
 }
 
@@ -56,27 +61,19 @@ export async function dev() {
     await build();
 }
 
-/** The release tarball: the binary and everything install.sh puts in place. */
+/** The release, into dist/: the tarball (the binary, everything install.sh
+ *  puts in place, README and LICENSE), its .sha256, install.sh, and
+ *  SHA256SUMS over the three. */
 export async function dist() {
     if (!existsSync("zig-out/bin/glim")) await build();
-    await $`rm -rf ${STAGING} && mkdir -p ${STAGING}`;
-    await $`cp zig-out/bin/glim dist/install.sh dist/glim.service dist/glim-follow.service dist/glim.conf ${STAGING}/`;
-    await $`tar -czf ${TARBALL} -C ${STAGING} .`;
-    await $`sha256sum ${TARBALL} > ${TARBALL}.sha256`;
-    console.log(`Tarball: ${TARBALL} (v${await version()})`);
-}
-
-export async function ci() {
-    await lint();
-    await test();
-    await build();
-    await dist();
-    if (process.env.GH_TOKEN) {
-        const ver = await version();
-        const notes = (await $`git log -1 --format=%B`.quiet()).text().trim();
-        console.log(`Creating release v${ver}...`);
-        await $`gh release create v${ver} ${TARBALL} ${TARBALL}.sha256 dist/install.sh --title v${ver} --notes ${notes}`;
-    }
+    await $`rm -rf ${STAGING} dist && mkdir -p ${STAGING} dist`;
+    await $`cp zig-out/bin/glim ${PACKAGING.map(f => `packaging/${f}`)} README.md LICENSE ${STAGING}/`;
+    await $`tar -czf dist/${TARBALL} -C ${STAGING} .`;
+    await $`rm -rf ${STAGING}`;
+    await $`cp packaging/install.sh dist/`;
+    await $`sha256sum ${TARBALL} > ${TARBALL}.sha256`.cwd("dist");
+    await $`sha256sum ${TARBALL} install.sh > SHA256SUMS`.cwd("dist");
+    console.log(`Tarball: dist/${TARBALL} (v${await version()})`);
 }
 
 /** The flake: the package builds from source and its tests pass, and the
@@ -97,7 +94,7 @@ async function printVersion() {
 }
 
 const commands: Record<string, Function> = {
-    dev, build, test, lint, clean, dist, ci, nix, version: printVersion,
+    dev, build, test, lint, clean, dist, nix, version: printVersion,
 };
 
 const command = process.argv[2] || "dev";

@@ -20,9 +20,9 @@ stdenv.mkDerivation {
       ../build.zig
       ../build.zig.zon
       ../src
-      ../dist/glim.service
-      ../dist/glim-follow.service
-      ../dist/glim.conf
+      ../packaging/glim.service
+      ../packaging/glim-follow.service
+      ../packaging/glim.conf
     ];
   };
 
@@ -53,12 +53,12 @@ stdenv.mkDerivation {
   installPhase = ''
     runHook preInstall
     mkdir -p $out/lib/systemd/system
-    substitute dist/glim.service $out/lib/systemd/system/glim.service \
+    substitute packaging/glim.service $out/lib/systemd/system/glim.service \
       --replace-fail /usr/local/bin/glim $out/bin/glim
     mkdir -p $out/lib/systemd/user
-    substitute dist/glim-follow.service $out/lib/systemd/user/glim-follow.service \
+    substitute packaging/glim-follow.service $out/lib/systemd/user/glim-follow.service \
       --replace-fail /usr/local/bin/glim $out/bin/glim
-    install -Dm644 dist/glim.conf $out/lib/modules-load.d/glim.conf
+    install -Dm644 packaging/glim.conf $out/lib/modules-load.d/glim.conf
     mkdir -p $out/lib/udev/rules.d
     $out/bin/glim udev-rules > $out/lib/udev/rules.d/70-glim.rules
     runHook postInstall

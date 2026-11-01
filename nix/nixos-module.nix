@@ -1,4 +1,4 @@
-# glim on NixOS: what dist/install.sh does everywhere else. The units and the
+# glim on NixOS: what packaging/install.sh does everywhere else. The units and the
 # udev rules come from the package, so they are the same files a tarball
 # install puts in /etc; this switches them on and loads uleds.
 { self }:

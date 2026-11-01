@@ -6,14 +6,15 @@
 # needs root and a Blade; the NixOS VM test covers an installed system).
 set -euo pipefail
 
-CDPATH='' cd "$(dirname "$0")/.."
+CDPATH='' cd "$(dirname "$0")/../dist"
 tarball=glim-linux-x86_64.tar.gz
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-(sha256sum -c "$tarball.sha256")
+sha256sum -c "$tarball.sha256"
+sha256sum -c SHA256SUMS
 tar -C "$work" -xzf "$tarball"
-for f in glim install.sh glim.service glim-follow.service glim.conf; do
+for f in glim install.sh glim.service glim-follow.service glim.conf README.md LICENSE; do
     [ -f "$work/$f" ] || { echo "dist-check: $f missing from $tarball" >&2; exit 1; }
 done
 

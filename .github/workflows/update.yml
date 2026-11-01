@@ -4,17 +4,17 @@
 # derivation nix-config builds, already in the danielbodart cache when it
 # asks. What moves: every flake input, and each tool in mise.toml to the
 # latest patch of its minor (a minor moves by hand, with zig_0_NN in
-# nix/package.nix). build.zig.zon's one dependency, minish, lazy and for the
-# property tests alone, is pinned to a tag and moves by hand: Zig has no
-# command that finds a newer one.
+# nix/package.nix), and any build.zig.zon dependency to its upstream's
+# latest release tag that builds with that Zig (scripts/zig-deps.sh; glim
+# has none today).
 #
 # Nothing is committed unless the new files pass what CI runs, every channel:
 # `mise run check`, the tarball built and its units verified, and `./run
 # nix`, the flake check with its NixOS VM test. Then they are committed
 # straight to trunk, named by what moved, glim's package is pushed to Cachix,
-# and if anything in mise.toml's RELEASE_PATHS moved (a new Zig, say), CI is
-# dispatched with `release` (a push made with GITHUB_TOKEN starts no
-# workflow). A week that moved only flake.lock releases nothing: the tarball
+# and if anything in mise.toml's RELEASE_PATHS changed since the last release
+# tag (`mise run release-due`: a new Zig, say), CI is dispatched with
+# `release` (a push made with GITHUB_TOKEN starts no workflow). A week that moved only flake.lock releases nothing: the tarball
 # is not built from the flake, so it would be the same code under a new
 # version.
 name: Weekly update
@@ -28,6 +28,10 @@ permissions:
 # Shared with anything else that commits to trunk.
 concurrency:
   group: update
+# bash -eo pipefail for every run step.
+defaults:
+  run:
+    shell: bash
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -65,6 +69,12 @@ jobs:
               moved+=("$tool $pinned -> $latest")
             fi
           done < <(mise ls --current --local --json | jq -r 'to_entries[] | "\(.key) \(.value[0].requested_version)"')
+          mise install
+
+          # build.zig.zon's dependencies, each to its latest tag that builds
+          # with that Zig.
+          zigdeps=$(mise exec -- scripts/zig-deps.sh)
+          if [ -n "$zigdeps" ]; then mapfile -t deps <<<"$zigdeps"; moved+=("${deps[@]}"); fi
 
           if [ ${#moved[@]} -eq 0 ]; then echo "Nothing moved."; exit 0; fi
           list=$(printf '%s, ' "${moved[@]}")
@@ -86,7 +96,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -qm "Weekly update: $MOVED" flake.lock mise.toml
+          git commit -qm "Weekly update: $MOVED" flake.lock mise.toml build.zig.zon
           git pull -q --rebase origin trunk
           git push -q origin HEAD:trunk
 
@@ -99,9 +109,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          read -ra paths <<<"$(sed -n 's/^RELEASE_PATHS = "\(.*\)"$/\1/p' mise.toml)"
-          if [ -n "$(git diff --name-only HEAD~1 HEAD -- "${paths[@]}")" ]; then
-            gh workflow run ci.yml --ref trunk -f release=true
-          else
-            echo "Nothing the tarball is made of moved: no release."
-          fi
+          if mise run release-due; then gh workflow run ci.yml --ref trunk -f release=true; fi
