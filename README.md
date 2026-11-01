@@ -123,17 +123,37 @@ It has been tried on a **Blade 16 (2023)**. The rest are there on OpenRazer's
 word; if yours works, or does not, please open an issue with the output of
 `glim probe`.
 
+## Channels
+
+glim ships two channels:
+
+- **Release tarball** (any distribution with systemd): built by
+  [mise](https://mise.jdx.dev) with the Zig `mise.toml` pins (`mise run
+  dist`), with `glim.service`, `glim-follow.service` and `install.sh` in it,
+  a `.sha256` and a cosign `.sigstore.json` bundle beside it. Unpack it and
+  run `sudo ./install.sh`, as above. A release is made when a push to `trunk`
+  that passes every check changed what the tarball is made of
+  (`RELEASE_PATHS` in `mise.toml`), as `v0.<commits>.<build>`.
+- **Nix package and NixOS module**: built by nixpkgs (nixos-26.05, its
+  `zig_0_15`) as `0-unstable-<date>`, pushed to the `danielbodart` Cachix.
+  Take the flake as an input, as above, and import `nixosModules.default`.
+
+Every Sunday at 21:23 UTC the weekly update moves the flake's inputs and
+mise's tools to their latest patch, checks both channels with them, and
+commits them to `trunk`.
+
 ## Building
 
-Zig and Bun come from [mise](https://mise.jdx.dev), pinned in `.mise.toml`.
-`./run test` runs the D-Bus client's test against a private bus it starts
-with `dbus-run-session`, never the session it is run from.
+Zig, Bun and shellcheck come from [mise](https://mise.jdx.dev), pinned in
+`mise.toml`. `mise run test` runs the D-Bus client's test against a private
+bus it starts with `dbus-run-session`, never the session it is run from.
 
 ```bash
-./run          # lint, test, build
-./run test     # unit tests
-./run dist     # the release tarball
-./run nix      # the flake's checks, including a NixOS VM test
+mise run check        # shellcheck and the unit tests
+mise run build        # glim, static, into zig-out/
+mise run dist         # the release tarball
+mise run dist-check   # the tarball unpacked, its units verified
+./run nix             # the flake's checks, including a NixOS VM test
 ```
 
 ## Thanks
