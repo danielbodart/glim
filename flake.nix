@@ -2,9 +2,9 @@
   description = "glim -- a Razer Blade's keyboard backlight, as an LED the desktop can drive";
 
   inputs = {
-    # A default rather than a constraint: `follows` it onto your own nixpkgs.
-    # glim builds from source into a static binary, so any nixpkgs with Zig
-    # 0.15 will do.
+    # nixos-26.05, as every one of danielbodart's flakes. A default rather
+    # than a constraint: `follows` it onto your own nixpkgs. glim builds from
+    # source into a static binary, so any nixpkgs with Zig 0.15 will do.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
   };
 
@@ -14,11 +14,12 @@
       # Razer's laptops are all x86_64.
       system = "x86_64-linux";
 
-      # The same 0.<commits>.<build> shape `./run version` gives the release
-      # binaries. Only a git ref carries revCount: reference the flake as
-      # `git+https://github.com/danielbodart/glim` to get it; a `github:` ref
-      # lands on 0.0.<date>.
-      version = "0.${toString (self.revCount or 0)}.${self.lastModifiedDate}";
+      # nixpkgs' version for a build from a commit, 0-unstable-YYYY-MM-DD,
+      # from the commit's date: it never claims to be a release (those are
+      # the tarballs', 0.<commits>.<build>), and a `github:` ref has the date
+      # as a `git+https:` one does.
+      date = self.lastModifiedDate;
+      version = "0-unstable-${builtins.substring 0 4 date}-${builtins.substring 4 2 date}-${builtins.substring 6 2 date}";
 
       pkgs = nixpkgs.legacyPackages.${system};
     in
