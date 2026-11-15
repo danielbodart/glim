@@ -1,22 +1,22 @@
 # Every dependency moves once a week, in the window all of danielbodart's
 # repositories share: Sunday 21:23 UTC, two hours before nix-config takes its
-# own inputs on the same nixos-26.05, so what the flake builds here is the
-# derivation nix-config builds, already in the danielbodart cache when it
-# asks. What moves: every flake input, and each tool in mise.toml to the
-# latest patch of its minor (a minor moves by hand, with zig_0_NN in
-# nix/package.nix), and any build.zig.zon dependency to its upstream's
-# latest release tag that builds with that Zig (scripts/zig-deps.sh; glim
-# has none today).
+# own inputs on the same nixos-26.05. Its glim is a release's tarball, pinned
+# by tag (flake.nix), so nothing here is built for it. What moves: every
+# flake input, and each tool in mise.toml to the latest patch of its minor
+# (a minor moves by hand), and any build.zig.zon dependency to its
+# upstream's latest release tag that builds with that Zig
+# (scripts/zig-deps.sh; glim has none today).
 #
 # Nothing is committed unless the new files pass what CI runs, every channel:
 # `mise run check`, the tarball built and its units verified, and `./run
-# nix`, the flake check with its NixOS VM test. Then they are committed
-# straight to trunk, named by what moved, glim's package is pushed to Cachix,
-# and if anything in mise.toml's RELEASE_PATHS changed since the last release
-# tag (`mise run release-due`: a new Zig, say), CI is dispatched with
-# `release` (a push made with GITHUB_TOKEN starts no workflow). A week that moved only flake.lock releases nothing: the tarball
-# is not built from the flake, so it would be the same code under a new
-# version.
+# nix`, the flake check with its NixOS VM test of that tarball (which
+# stages, and then takes out again, a nix/release.json for it). Then they
+# are committed straight to trunk, named by what moved, and if anything in
+# mise.toml's RELEASE_PATHS changed since the last release (`mise run
+# release-due`: a new Zig, say), CI is dispatched with `release` (a push
+# made with GITHUB_TOKEN starts no workflow). A week that moved only
+# flake.lock releases nothing: the package is the release's tarball
+# whatever nixpkgs is, so it would be the same code under a new version.
 name: Weekly update
 on:
   schedule:
@@ -44,13 +44,6 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
         with:
           determinate: false
-      # Read only: the action would push every path the check built, the VM
-      # test's NixOS closure among them, and the free tier is 5 GB.
-      - uses: cachix/cachix-action@v17
-        with:
-          name: danielbodart
-          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          skipPush: true
 
       - name: Move everything
         id: update
@@ -99,10 +92,6 @@ jobs:
           git commit -qm "Weekly update: $MOVED" flake.lock mise.toml build.zig.zon
           git pull -q --rebase origin trunk
           git push -q origin HEAD:trunk
-
-      - name: Push glim's package to Cachix
-        if: steps.update.outputs.moved
-        run: nix build --no-link --print-out-paths .#glim | cachix push danielbodart
 
       - name: Release, if a release path moved
         if: steps.update.outputs.moved

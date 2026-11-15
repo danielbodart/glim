@@ -46,7 +46,7 @@ export async function test() {
 }
 
 export async function lint() {
-    await $`shellcheck packaging/install.sh`;
+    await $`shellcheck packaging/install.sh scripts/*.sh`;
 }
 
 export async function clean() {
@@ -76,15 +76,33 @@ export async function dist() {
     console.log(`Tarball: dist/${TARBALL} (v${await version()})`);
 }
 
-/** The flake: the package builds from source and its tests pass, and the
- *  NixOS module wires glim up (checked in a NixOS VM). */
+/** The flake, with the tarball in dist/ as its release: the package is a
+ *  release tarball fetched (flake.nix), so this stages a nix/release.json
+ *  for the one dist made and puts it in the store where fetchurl would
+ *  (scripts/nix-local-release.sh), then runs the flake's checks, the NixOS
+ *  VM test among them, against it. The staged release.json is taken out
+ *  again whatever happens: it belongs on a release tag's own commit, never
+ *  on trunk. */
 export async function nix() {
     const { exitCode } = await $`which nix`.quiet().nothrow();
     if (exitCode !== 0) {
         console.log("nix: skipped (nix not installed)");
         return;
     }
-    await $`nix flake check --print-build-logs`;
+    if (!existsSync(`dist/${TARBALL}`)) await dist();
+    // The version the binary in the tarball says, which a timestamped
+    // local build would not otherwise agree on with a second version().
+    const work = (await $`mktemp -d`.text()).trim();
+    try {
+        await $`tar -xzf dist/${TARBALL} -C ${work} ./glim`;
+        const ver = (await $`${work}/glim --version`.text()).trim();
+        await $`scripts/nix-local-release.sh ${ver} dist`;
+        await $`nix flake check --print-build-logs`;
+    } finally {
+        await $`rm -rf ${work}`;
+        await $`git rm -q --cached --ignore-unmatch nix/release.json`.nothrow();
+        await $`rm -f nix/release.json`;
+    }
 }
 
 // ─── Command dispatch ──────────────────────────────────────────────────────

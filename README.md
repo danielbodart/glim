@@ -78,10 +78,13 @@ it all out again.
 
 ### NixOS
 
+Pin a release tag: the flake's package is that release's tarball, fetched
+by its hash, so on trunk there is none.
+
 ```nix
 {
   inputs.glim = {
-    url = "github:danielbodart/glim";
+    url = "github:danielbodart/glim/v<V>"; # a release's tag, from the releases page
     inputs.nixpkgs.follows = "nixpkgs";
   };
 }
@@ -131,10 +134,15 @@ word; if yours works, or does not, please open an issue with the output of
   Zig `mise.toml` pins (`mise run dist`). It holds `glim`, its units
   `glim.service` and `glim-follow.service`, `glim.conf`, `install.sh`, the
   README and the licence: unpack it and run `sudo ./install.sh`, as above.
-- **Nix**: a flake input, `github:danielbodart/glim` (with
-  `inputs.nixpkgs.follows = "nixpkgs"`), its `packages.default`
-  (`0-unstable-<date>`) and `nixosModules.default`, as above; built by
-  nixpkgs (nixos-26.05, its `zig_0_15`), pushed to the `danielbodart` Cachix.
+- **Nix**: a flake input pinned to a release's tag,
+  `github:danielbodart/glim/v<V>` (with `inputs.nixpkgs.follows =
+  "nixpkgs"`), its `packages.default` and `nixosModules.default`, as above.
+  The package is that release's tarball, the one mise built, fetched by the
+  hash in the tag's `nix/release.json` and laid out (the binary, its units
+  pointed at it, `glim.conf` and the udev rules), not built again from
+  source. A release's tag is a commit of its own, a child of the released
+  trunk commit that adds only `nix/release.json`; on trunk the flake has no
+  package.
 - Not shipped: Docker — glim is a host daemon that makes the Blade's
   keyboard backlight an LED (uleds, udev, the desktop session's D-Bus), with
   nothing a container would add.
@@ -143,8 +151,8 @@ Updated weekly (Sunday 21:23 UTC): the flake's inputs, mise's tools to the
 latest patch of their minor, and any build.zig.zon dependency to its latest
 release tag that builds with that Zig (none today). A release,
 `v0.<commits>.<build>`, is cut when the code, the units and installer in
-`packaging/`, `run.ts` or `mise.toml` changed since the last one
-(`RELEASE_PATHS` in `mise.toml`).
+`packaging/`, `run.ts`, `mise.toml`, `flake.nix` or the package and module
+in `nix/` changed since the last one (`RELEASE_PATHS` in `mise.toml`).
 
 ## Building
 
@@ -157,7 +165,7 @@ mise run check        # shellcheck and the unit tests
 mise run build        # glim, static, into zig-out/
 mise run dist         # the release, into dist/
 mise run dist-check   # the tarball unpacked, its units verified
-./run nix             # the flake's checks, including a NixOS VM test
+./run nix             # the flake's checks, a NixOS VM test, with dist/ as its release
 ```
 
 ## Thanks

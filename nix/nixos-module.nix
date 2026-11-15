@@ -18,9 +18,12 @@ in
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = self.packages.${pkgs.stdenv.hostPlatform.system}.glim;
+      # Only a release tag has a package (flake.nix): on trunk, say so.
+      default =
+        self.packages.${pkgs.stdenv.hostPlatform.system}.glim
+          or (throw "glim: this flake has no package here; pin a release tag, github:danielbodart/glim/v<V>");
       defaultText = lib.literalExpression "glim.packages.\${system}.glim";
-      description = "The glim package to use.";
+      description = "The glim package to use: a release's tarball, as the flake pinned at its tag has it.";
     };
 
     follow = lib.mkOption {
