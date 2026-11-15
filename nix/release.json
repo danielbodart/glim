@@ -1,0 +1,9 @@
+{
+  "version": "0.15.11",
+  "assets": {
+    "x86_64-linux": {
+      "url": "https://github.com/danielbodart/glim/releases/download/v0.15.11/glim-linux-x86_64.tar.gz",
+      "hash": "sha256-47u2pVAAKJou6optMA55UuuRKCO+acL7zZwToOkD6NY="
+    }
+  }
+}
